@@ -6,6 +6,13 @@ public class lab4 {
 
     public static int pc = 0;
     public static int branch = 0;
+    public static int load = 0;
+
+    public static int checkStall = 0;
+    public static int cycles = 0;
+    public static Boolean quit = false;
+
+    public static int execute = 0;
     public static int pipelinePC = 0;
     public static HashMap<String, Integer> registers = new HashMap<String, Integer>();
     public static int[] data_memory = new int[8192];
@@ -240,6 +247,7 @@ public class lab4 {
                 break;
             case "lw":
                 int mem = data_memory[instruct.immediate + registers.get(instruct.rs)];
+                load = 1;
                 registers.put(instruct.rt, mem);
                 pc++;
                 break;
@@ -269,13 +277,106 @@ public class lab4 {
         Instruction instruct;
 
         while (pc < instructionObject.size()) {
+
+            //pipelinePC ++;
+            System.out.println("\nPC: " + pc + " SIZE: " + instructionObject.size() + " " + instructionObject.get(pc).opcode + "\n");
+
+            addToPipeline(instructionObject.get(pc).opcode);
+
             handleInstruct(instructionObject.get(pc));
+
+            System.out.println("HERE");
+
+//            if(pipeline.get(1).equals("lw")){
+//                if(!(instructionObject.get(pc - 1).opcode.equals("lw")) && instructionObject.get(pc).rt.equals(instructionObject.get(pc - 1).rs)
+//                        || !(instructionObject.get(pc - 1).opcode.equals("lw")) && instructionObject.get(pc).rt.equals(instructionObject.get(pc - 1).rt)
+//                        || (instructionObject.get(pc - 1).opcode.equals("lw") && instructionObject.get(pc).rt.equals(instructionObject.get(pc - 1).rs))){
+//                    execute = 1;
+//                }
+//            }
+
+            String str = "";
+            str += "PC   " + "if/id   " +"id/exe   "+"exe/mem   "+"mem/wb   \n";
+            str += pipelinePC + "    " + pipeline.get(0) + "    " + pipeline.get(1) + "    " + pipeline.get(2) + "    " + pipeline.get(3);
+            System.out.println(str);
+
+            if(pipeline.get(1).equals("lw")) {
+                System.out.println("PC -2: " + instructionObject.get(pc - 2).opcode);
+                System.out.println("PC -1: " + instructionObject.get(pc - 1).opcode);
+
+
+                if (!(instructionObject.get(pc - 1).opcode.equals("lw")) && instructionObject.get(pc - 1).rt.equals(instructionObject.get(pc - 2).rs)
+                        || !(instructionObject.get(pc - 1).opcode.equals("lw")) && instructionObject.get(pc - 1).rt.equals(instructionObject.get(pc - 2).rt)
+                        || (instructionObject.get(pc - 2).opcode.equals("lw") && instructionObject.get(pc - 1).rt.equals(instructionObject.get(pc - 2).rs))) {
+                    execute = 1;
+                    System.out.println("\nI Stalled!\n");
+                }
+
+                if ((instructionObject.get(pc - 2).opcode.equals("lw") && (instructionObject.get(pc - 2).rt.equals("$0")))) {
+                    System.out.println("I got here");
+                    execute = 0;
+                }
+            }
+
+            if(load == 1 && execute == 1){
+
+                pipeline.add(1, "stall");
+                pipeline.removeLast();
+                cycles ++;
+                checkStall ++;
+                load = 0;
+                execute = 0;
+
+                String str2 = "";
+                str2 += "PC   " + "if/id   " +"id/exe   "+"exe/mem   "+"mem/wb   \n";
+                str2 += pipelinePC + "    " + pipeline.get(0) + "    " + pipeline.get(1) + "    " + pipeline.get(2) + "    " + pipeline.get(3);
+                System.out.println(str2);
+
+            }
+
+            System.out.println("HERE I AM  " + pc);
+            if(pc == instructionObject.size()){
+                System.out.println("HERE I AM ");
+                String str3 = "";
+                str3 += "PC   " + "if/id   " +"id/exe   "+"exe/mem   "+"mem/wb   \n";
+                str3 += pipelinePC + "    " + pipeline.get(0) + "    " + pipeline.get(1) + "    " + pipeline.get(2) + "    " + pipeline.get(3);
+                System.out.println(str3);
+                addToPipeline("empty");
+                addToPipeline("empty");
+                addToPipeline("empty");
+                addToPipeline("empty");
+                //cycles += 3;
+
+                str3 = "";
+                str3 += "PC   " + "if/id   " +"id/exe   "+"exe/mem   "+"mem/wb   \n";
+                str3 += pipelinePC + "    " + pipeline.get(0) + "    " + pipeline.get(1) + "    " + pipeline.get(2) + "    " + pipeline.get(3);
+                System.out.println(str3);
+            }
+
+//            String str = "";
+//            str += "PC   " + "if/id   " +"id/exe   "+"exe/mem   "+"mem/wb   \n";
+//            str += pipelinePC + "    " + pipeline.get(0) + "    " + pipeline.get(1) + "    " + pipeline.get(2) + "    " + pipeline.get(3);
+//            System.out.println(str);
+
         }
+
+        String str = "";
+        str += "PC   " + "if/id   " +"id/exe   "+"exe/mem   "+"mem/wb   \n";
+        str += pipelinePC + "    " + pipeline.get(0) + "    " + pipeline.get(1) + "    " + pipeline.get(2) + "    " + pipeline.get(3);
+        System.out.println(str);
+
+        System.out.println("Program Complete");
+        System.out.println("CHECK STALL: " + checkStall);
+        System.out.println("CPI = " + ((double)cycles/instructionObject.size()) + " Cycles = " + cycles + " Instructions = " + instructionObject.size());
+
+        //quit = true;
+
     }
 
     public static void addToPipeline(String str){
         pipeline.addFirst(str);
         pipelinePC ++;
+        cycles ++;
         if(pipeline.size() > 4 ){
             pipeline.removeLast();
         }
@@ -283,7 +384,6 @@ public class lab4 {
 
     public static void handleCommand(String[] input) {
         String command = input[0];
-
         if (command.equals("q")) {
             System.exit(0);
 
@@ -305,12 +405,12 @@ public class lab4 {
         } else if (command.equals("s")) {
             if (input.length == 2) {
                 String count = input[1];
-                System.out.printf("%9s instruction(s) executed\n", count);
+                //System.out.printf("%9s instruction(s) executed\n", count);
                 for (int i = 0; i < Integer.parseInt(count); i++) {
                     handleInstruct(instructionObject.get(pc));
                     addToPipeline(instructionObject.get(pc).opcode);
-                    System.out.println(pipeline);
-                    System.out.println("BRANCH: " + pipeline.getLast());
+                    //System.out.println(pipeline);
+                    //System.out.println("BRANCH: " + pipeline.getLast());
                     if(branch == 1 && pipeline.getLast().equals("bne")){
                         pipeline.set(0, "squash");
                         pipeline.set(1, "squash");
@@ -319,10 +419,62 @@ public class lab4 {
                     }
                 }
             } else if (input.length == 1) {
-                System.out.println("        1 instruction(s) executed");
-                handleInstruct(instructionObject.get(pc));
+
                 addToPipeline(instructionObject.get(pc).opcode);
-                System.out.println(pipeline);
+                handleInstruct(instructionObject.get(pc));
+
+                if(branch == 1 && pipeline.getLast().equals("bne")){
+                    pipeline.set(0, "squash");
+                    pipeline.set(1, "squash");
+                    pipeline.set(2, "squash");
+
+                }
+
+
+
+                if(pipeline.get(1).equals("lw")) {
+                    System.out.println("PC -2: " + instructionObject.get(pc - 2).opcode);
+                    System.out.println("PC -1: " + instructionObject.get(pc - 1).opcode);
+
+
+                    if (!(instructionObject.get(pc - 1).opcode.equals("lw")) && instructionObject.get(pc - 1).rt.equals(instructionObject.get(pc - 2).rs)
+                            || !(instructionObject.get(pc - 1).opcode.equals("lw")) && instructionObject.get(pc - 1).rt.equals(instructionObject.get(pc - 2).rt)
+                            || (instructionObject.get(pc - 2).opcode.equals("lw") && instructionObject.get(pc - 1).rt.equals(instructionObject.get(pc - 2).rs))) {
+                        execute = 1;
+                        System.out.println("\nI Stalled!\n");
+                    }
+
+                    if ((instructionObject.get(pc - 2).opcode.equals("lw") && (instructionObject.get(pc - 2).rt.equals("$0")))) {
+                        System.out.println("I got here");
+                        execute = 0;
+                    }
+                }
+
+                if(load == 1 && execute == 1){
+
+                    pipeline.add(1, "stall");
+                    pipeline.removeLast();
+                    cycles ++;
+                    checkStall ++;
+                    load = 0;
+                    execute = 0;
+
+                    String str2 = "";
+                    str2 += "PC   " + "if/id   " +"id/exe   "+"exe/mem   "+"mem/wb   \n";
+                    str2 += pipelinePC + "    " + pipeline.get(0) + "    " + pipeline.get(1) + "    " + pipeline.get(2) + "    " + pipeline.get(3);
+                    System.out.println(str2);
+
+                }
+
+                System.out.print("\nmips> s");
+                String str = "";
+                str += "PC   " + "if/id   " +"id/exe   "+"exe/mem   "+"mem/wb   \n";
+                str += pipelinePC + "    " + pipeline.get(0) + "    " + pipeline.get(1) + "    " + pipeline.get(2) + "    " + pipeline.get(3);
+                System.out.println(str);
+
+
+
+
             } else {
                 System.out.println("        Incorrect number of arguments for command s");
             }
@@ -357,9 +509,15 @@ public class lab4 {
     public static void main(String[] args) throws FileNotFoundException {
 
         File file = new File(args[0]);
+        //File file = new File("test1.asm");
         Scanner scanner = new Scanner(file);
 
         parseASM(scanner);
+
+//        for (Instruction instruction : instructionObject) {
+//            System.out.println(instruction.opcode);
+//        }
+
 
         for(int i = 0; i < 4; i++){
             pipeline.add("empty");
@@ -367,7 +525,7 @@ public class lab4 {
 
         String mode = "";
         switch (args.length) {
-            case 1:
+            case 0:
                 mode = "interactive";
                 break;
             case 2:
@@ -382,14 +540,27 @@ public class lab4 {
         if (mode == "interactive") {
 
             Scanner scanner2 = new Scanner(System.in);
-            Boolean quit = false;
-            do {
+            //Boolean quit = false;
+//            do {
+//                if(quit){
+//                    break;
+//                }
+//                System.out.print("mips> ");
+//                input = scanner2.nextLine().split("\\s");
+//                System.out.println(input);
+//                handleCommand(input);
+//                System.out.println("");
+//            } while (!quit);
+//            scanner2.close();
+
+            while(!quit){
                 System.out.print("mips> ");
                 input = scanner2.nextLine().split("\\s");
                 handleCommand(input);
                 System.out.println("");
-            } while (!quit);
+            }
             scanner2.close();
+
 
         }
         if (mode == "script") {
