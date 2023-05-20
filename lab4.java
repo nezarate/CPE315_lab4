@@ -308,7 +308,6 @@ public class lab4 {
                     (instructionObject.get(pc).rt.equals(instructionObject.get(pc - 1).rt) ||
                             instructionObject.get(pc).rs.equals(instructionObject.get(pc - 1).rt))) {
                 execute = 1;
-            } else {
             }
 
             if ((instructionObject.get(pc - 1).opcode.equals("lw")
@@ -466,12 +465,14 @@ public class lab4 {
             pc = 0;
             Arrays.fill(data_memory, 0);
             branchCounter = 0;
-            branchPC = new ArrayList<Integer>();
+            branchPC.clear();
             squashed = 0;
             jumpPC = 0;
             jump = 0;
             instructCount = 0;
-            pipeline = new LinkedList<String>();
+            for (int i = 0; i < 4; i++) {
+                addToPipeline("empty");
+            }
 
         } else if (command.equals("p")) {
             printPipeline();
@@ -494,7 +495,7 @@ public class lab4 {
 
         String mode = "";
         switch (args.length) {
-            case 0:
+            case 1:
                 mode = "interactive";
                 break;
             case 2:
