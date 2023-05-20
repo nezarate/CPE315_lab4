@@ -2,22 +2,18 @@ import java.util.*;
 import java.io.File;
 import java.io.FileNotFoundException;
 
-public class lab4test {
+public class lab4 {
 
     public static int pc = 0;
-    public static int branch = 0;
-    public static int branchPC = 0;
-    public static int load = 0;
 
-    public static int delayLoad = 0;
-    public static int delayJump = 0;
-    public static int delayBranch = 0;
+    public static int branchCounter = 0;
+    public static ArrayList<Integer> branchPC = new ArrayList<Integer>();
+    public static int squashed = 0;
+    public static int jumpPC = 0;
+    public static int jump = 0;
 
     public static int instructCount = 0;
-    public static ArrayList<Instruction> instructionsAfterBranch = new ArrayList<Instruction>();
 
-    public static int checkStall = 0;
-    public static int cycles = 0;
     public static Boolean quit = false;
 
     public static int execute = 0;
@@ -48,7 +44,9 @@ public class lab4test {
                 String reg_str = registerNames[i][j] + " = " + registers.get(registerNames[i][j]);
                 line += String.format("%-15s", reg_str);
             }
+
             System.out.println(line);
+
         }
     }
 
@@ -56,7 +54,7 @@ public class lab4test {
         System.out.println("");
         String str2 = "";
         str2 += "pc   " + "if/id   " + "id/exe   " + "exe/mem   " + "mem/wb   \n";
-        str2 += pipelinePC + "    " + pipeline.get(0) + "    " + pipeline.get(1) + "    " + pipeline.get(2)
+        str2 += pc + "    " + pipeline.get(0) + "    " + pipeline.get(1) + "    " + pipeline.get(2)
                 + "    " + pipeline.get(3);
         System.out.println(str2);
     }
@@ -203,10 +201,8 @@ public class lab4test {
     }
 
     public static void handleInstruct(Instruction instruct) {
-
         String op = instruct.opcode;
         instructCount++;
-        System.out.println(op);
         int temp;
         switch (op) {
             case "and":
@@ -250,21 +246,20 @@ public class lab4test {
                 break;
             case "beq":
                 if (registers.get(instruct.rt) == registers.get(instruct.rs)) {
-                    branch = 1;
-                    branchPC = instruct.immediate;
+                    branchCounter += 2;
+                    branchPC.add(instruct.immediate);
                 }
                 pc++;
                 break;
             case "bne":
                 if (registers.get(instruct.rt) != registers.get(instruct.rs)) {
-                    branch = 1;
-                    branchPC = instruct.immediate;
+                    branchCounter += 2;
+                    branchPC.add(instruct.immediate);
                 }
                 pc++;
                 break;
             case "lw":
                 int mem = data_memory[instruct.immediate + registers.get(instruct.rs)];
-                load = 1;
                 registers.put(instruct.rt, mem);
                 pc++;
                 break;
@@ -273,17 +268,20 @@ public class lab4test {
                 pc++;
                 break;
             case "j":
-                pc = instruct.address;
-                delayJump = 1;
+                pc++;
+                jumpPC = instruct.address;
+                jump = 1;
                 break;
             case "jal":
                 registers.put("$ra", pc + 1);
-                pc = instruct.address;
-                delayJump = 1;
+                pc++;
+                jumpPC = instruct.address;
+                jump = 1;
                 break;
             case "jr":
-                pc = registers.get(instruct.rs);
-                delayJump = 1;
+                pc++;
+                jumpPC = registers.get(instruct.rs);
+                jump = 1;
                 break;
             default:
                 System.exit(0);
@@ -293,63 +291,30 @@ public class lab4test {
     }
 
     public static void handlePipeline() {
-        // System.out.println(pipeline);
-        System.out.println("Branch:" + branch);
-        if (pipeline.getLast().equals("bne") || pipeline.getLast().equals("beq")) {
-            if (branch == 1) {
-                delayBranch++;
+
+        if ((pipeline.getLast().equals("bne") || pipeline.getLast().equals("beq")) &&
+                branchPC.size() != 0) {
+            if (branchCounter == 0) {
                 pipeline.set(0, "squash");
                 pipeline.set(1, "squash");
                 pipeline.set(2, "squash");
-                pc = branchPC;
-                pipelinePC++;
-                branch = 0;
-            }
-            if (branch == 0) {
-                for (int i = 0; i < instructionsAfterBranch.size(); i++) {
-                    handleInstruct(instructionsAfterBranch.get(i));
-                }
-                branch = 0;
+                squashed = 1;
+
             }
         }
 
         if (pipeline.get(1).equals("lw")) {
-            // System.out.println("PC -2: " + instructionObject.get(pc - 2).opcode);
-            // System.out.println("PC -1: " + instructionObject.get(pc - 1).opcode);
-
-            if (!(instructionObject.get(pc - 1).opcode.equals("lw"))
-                    && instructionObject.get(pc - 1).rt.equals(instructionObject.get(pc - 2).rs)
-                    || !(instructionObject.get(pc - 1).opcode.equals("lw"))
-                            && instructionObject.get(pc - 1).rt.equals(instructionObject.get(pc - 2).rt)
-                    || (instructionObject.get(pc - 2).opcode.equals("lw")
-                            && instructionObject.get(pc - 1).rt.equals(instructionObject.get(pc - 2).rs))) {
+            if ((!instructionObject.get(pc).opcode.equals("lw")) &&
+                    (instructionObject.get(pc).rt.equals(instructionObject.get(pc - 1).rt) ||
+                            instructionObject.get(pc).rs.equals(instructionObject.get(pc - 1).rt))) {
                 execute = 1;
-                // System.out.println("\nI Stalled!\n");
+            } else {
             }
 
-            if ((instructionObject.get(pc - 2).opcode.equals("lw")
-                    && (instructionObject.get(pc - 2).rt.equals("$0")))) {
-                // System.out.println("I got here");
+            if ((instructionObject.get(pc - 1).opcode.equals("lw")
+                    && (instructionObject.get(pc - 1).rt.equals("$0")))) {
                 execute = 0;
             }
-        }
-
-        if (load == 1 && execute == 1) {
-
-            delayLoad++;
-            pipeline.add(1, "stall");
-            pipeline.removeLast();
-            cycles++;
-            checkStall++;
-            load = 0;
-            execute = 0;
-
-        }
-
-        if (pipeline.get(0).equals("j") || pipeline.get(0).equals("jal") || pipeline.get(0).equals("jr")) {
-            pipeline.add(0, "squash");
-            pipeline.removeLast();
-            pipelinePC++;
         }
 
     }
@@ -359,89 +324,86 @@ public class lab4test {
         Instruction instruct;
 
         while (pc < instructionObject.size()) {
-            if (delayLoad == 1) {
-                delayLoad--;
-                continue;
-            }
-
-            if (delayJump == 1) {
-                delayJump--;
-                continue;
-            }
-
-            if (delayBranch == 1) {
-                delayBranch--;
-                continue;
-            }
-
-            // pipelinePC ++;
-            // System.out.println("\nPC: " + pc + " SIZE: " + instructionObject.size() + " "
-            // + instructionObject.get(pc).opcode + "\n");
-
-            addToPipeline(instructionObject.get(pc).opcode);
-
-            printPipeline();
-            ;
-            if (branch == 0) {
-                handleInstruct(instructionObject.get(pc));
-            } else {
-                instructionsAfterBranch.add(instructionObject.get(pc));
-            }
-
-            handlePipeline();
-
-            // System.out.println("HERE");
-
-            // if(pipeline.get(1).equals("lw")){
-            // if(!(instructionObject.get(pc - 1).opcode.equals("lw")) &&
-            // instructionObject.get(pc).rt.equals(instructionObject.get(pc - 1).rs)
-            // || !(instructionObject.get(pc - 1).opcode.equals("lw")) &&
-            // instructionObject.get(pc).rt.equals(instructionObject.get(pc - 1).rt)
-            // || (instructionObject.get(pc - 1).opcode.equals("lw") &&
-            // instructionObject.get(pc).rt.equals(instructionObject.get(pc - 1).rs))){
-            // execute = 1;
-            // }
-            // }
+            executeOneCycle(false);
 
         }
 
-        // System.out.println("HERE I AM " + pc);
         if (pc == instructionObject.size()) {
-            // System.out.println("HERE I AM ");
-            // printPipeline();
             addToPipeline("empty");
             addToPipeline("empty");
             addToPipeline("empty");
             addToPipeline("empty");
-            // cycles += 3;
 
         }
-
-        // printPipeline();
 
         System.out.println("");
         System.out.println("Program complete");
-        // System.out.println("CHECK STALL: " + checkStall);
-        // System.out.println("CPI = " + ((double) cycles / instructionObject.size()) +
-        // " Cycles = " + cycles
-        // + " Instructions = " + instructionObject.size());
-        String CPI = String.format("%.2f", (double) cycles / instructCount);
+        String CPI = String.format("%.3f", (double) pipelinePC / instructCount);
         System.out.format("CPI = %s Cycles = %d Instructions = %d", CPI,
-                cycles,
+                pipelinePC,
                 instructCount);
         System.out.println("");
-
-        // quit = true;
 
     }
 
     public static void addToPipeline(String str) {
         pipeline.addFirst(str);
         pipelinePC++;
-        cycles++;
         if (pipeline.size() > 4) {
             pipeline.removeLast();
         }
+    }
+
+    public static void executeOneCycle(boolean print) {
+        if (jump == 1) {
+            pipeline.add(0, "squash");
+            pipeline.removeLast();
+            pipelinePC++;
+            pc = jumpPC;
+            if (print) {
+                printPipeline();
+            }
+            jump--;
+            return;
+        }
+
+        addToPipeline(instructionObject.get(pc).opcode);
+
+        if (branchCounter == 0) {
+            handlePipeline();
+
+            if (execute == 1) {
+                pc++;
+                if (print) {
+                    printPipeline();
+                }
+                pipeline.set(0, "stall");
+                pc--;
+                execute = 0;
+            } else {
+                if (squashed != 1) {
+                    handleInstruct(instructionObject.get(pc));
+                } else {
+                    pc++;
+                }
+                if (print) {
+                    printPipeline();
+                }
+            }
+
+            if (squashed == 1) {
+                pc = branchPC.get(0);
+                branchPC.remove(0);
+                squashed = 0;
+            }
+        } else {
+            branchCounter--;
+            pc++;
+            if (print) {
+                printPipeline();
+            }
+        }
+
     }
 
     public static void handleCommand(String[] input) {
@@ -467,68 +429,23 @@ public class lab4test {
         } else if (command.equals("s")) {
             if (input.length == 2) {
                 String count = input[1];
-                // System.out.printf("%9s instruction(s) executed\n", count);
+
                 for (int i = 0; i < Integer.parseInt(count); i++) {
-                    if (delayLoad == 1) {
-                        delayLoad--;
-                        continue;
-                    }
 
-                    if (delayJump == 1) {
-                        delayJump--;
-                        continue;
-                    }
-
-                    if (delayBranch == 1) {
-                        delayBranch--;
-                        continue;
-                    }
-                    addToPipeline(instructionObject.get(pc).opcode);
-                    printPipeline();
-                    if (branch == 0) {
-                        handleInstruct(instructionObject.get(pc));
-                    } else {
-                        instructionsAfterBranch.add(instructionObject.get(pc));
-                    }
-                    handlePipeline();
-                    // System.out.println(pipeline);
-                    // System.out.println("BRANCH: " + pipeline.getLast());
+                    executeOneCycle(true);
                 }
+
             } else if (input.length == 1) {
-                // System.out.println("delayLoad:" + delayLoad);
-                if (delayLoad == 1) {
-                    printPipeline();
-                    delayLoad--;
-                    return;
-                }
 
-                if (delayJump == 1) {
-                    printPipeline();
-                    delayJump--;
-                    return;
-                }
-
-                if (delayBranch == 1) {
-                    printPipeline();
-                    delayBranch--;
-                    return;
-                }
-
-                addToPipeline(instructionObject.get(pc).opcode);
-                printPipeline();
-
-                if (branch == 0) {
-                    handleInstruct(instructionObject.get(pc));
-                } else {
-                    instructionsAfterBranch.add(instructionObject.get(pc));
-                }
-                handlePipeline();
+                executeOneCycle(true);
 
             } else {
                 System.out.println("        Incorrect number of arguments for command s");
             }
 
-        } else if (command.equals("r")) {
+        } else if (command.equals("r"))
+
+        {
             completeOperation();
 
         } else if (command.equals("m")) {
@@ -542,13 +459,22 @@ public class lab4test {
             for (int i = num1; i <= num2; i++) {
                 System.out.println("[" + i + "] = " + data_memory[i]);
             }
-
         } else if (command.equals("c")) {
             System.out.println("        Simulator reset");
             registers.replaceAll((k, v) -> 0);
+            pipelinePC = 0;
             pc = 0;
             Arrays.fill(data_memory, 0);
+            branchCounter = 0;
+            branchPC = new ArrayList<Integer>();
+            squashed = 0;
+            jumpPC = 0;
+            jump = 0;
+            instructCount = 0;
+            pipeline = new LinkedList<String>();
 
+        } else if (command.equals("p")) {
+            printPipeline();
         } else {
             System.out.println("Incorrect command.\n");
 
@@ -558,14 +484,9 @@ public class lab4test {
     public static void main(String[] args) throws FileNotFoundException {
 
         File file = new File(args[0]);
-        // File file = new File("test1.asm");
         Scanner scanner = new Scanner(file);
 
         parseASM(scanner);
-
-        // for (Instruction instruction : instructionObject) {
-        // System.out.println(instruction.opcode);
-        // }
 
         for (int i = 0; i < 4; i++) {
             pipeline.add("empty");
@@ -606,6 +527,7 @@ public class lab4test {
                 System.out.println("mips> " + line);
                 handleCommand(input);
                 System.out.println("");
+
             }
             scanner2.close();
         }
